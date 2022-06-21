@@ -204,13 +204,13 @@ class block_configurable_reports extends block_list {
 
                     $components = cr_unserialize($reportclass->config->components);
                     $config = (isset($components['customsql']['config'])) ? $components['customsql']['config'] : new \stdclass;
-                    $sql = $reportclass->prepare_sql($config->querysql);
+                    [$sql, $params] = $reportclass->prepare_sql($config->querysql);
 
                     $sqlqueries = explode(';', $sql);
 
                     foreach ($sqlqueries as $sql) {
                         mtrace(substr($sql, 0, 60)); // Show some SQL.
-                        $results = $reportclass->execute_query($sql);
+                        $results = $reportclass->execute_query($sql, $params);
                         if ($results == 1) {
                             mtrace('...OK time='.round((microtime(true) - $starttime) * 1000).'mSec');
                         } else {
