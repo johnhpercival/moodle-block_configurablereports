@@ -42,7 +42,8 @@ class report_sql extends report_base {
 
     public function prepare_sql($sql) {
         global $DB, $USER, $CFG, $COURSE;
-
+        $params = array();
+        
         // Enable debug mode from SQL query.
         $this->config->debug = (strpos($sql, '%%DEBUG%%') !== false) ? true : false;
 
@@ -52,6 +53,13 @@ class report_sql extends report_base {
         $filtervar = optional_param('filter_var', '', PARAM_RAW);
         if (!empty($filtervar)) {
             $sql = str_replace('%%FILTER_VAR%%', $filtervar, $sql);
+        }
+
+        $params['filter_var_safe'] = '';
+        $sql = str_replace('%%FILTER_VAR_SAFE%%', ':filter_var_safe', $sql);
+        $filter_var_safe = optional_param('filter_var_safe', '', PARAM_RAW);
+        if (!empty($filter_var_safe)) {
+            $params['filter_var_safe'] = $filter_var_safe;
         }
 
         $sql = str_replace('%%USERID%%', $USER->id, $sql);
@@ -65,10 +73,10 @@ class report_sql extends report_base {
 
         $sql = str_replace('?', '[[QUESTIONMARK]]', $sql);
 
-        return $sql;
+        return [$sql, $params];
     }
 
-    public function execute_query($sql, $limitnum = BLOCK_CONFIGURABLE_REPORTS_MAX_RECORDS) {
+    public function execute_query($sql, array $params=null, $limitnum = BLOCK_CONFIGURABLE_REPORTS_MAX_RECORDS) {
         global $remotedb, $DB, $CFG;
 
         $sql = preg_replace('/\bprefix_(?=\w+)/i', $CFG->prefix, $sql);
@@ -82,9 +90,9 @@ class report_sql extends report_base {
 
         if (preg_match('/\b(INSERT|INTO|CREATE)\b/i', $sql) && !empty($CFG->block_configurable_reports_enable_sql_execution)) {
             // Run special (dangerous) queries directly.
-            $results = $remotedb->execute($sql);
+            $results = $remotedb->execute($sql, $params);
         } else {
-            $results = $remotedb->get_recordset_sql($sql, null, 0, $reportlimit);
+            $results = $remotedb->get_recordset_sql($sql, $params, 0, $reportlimit);
         }
 
         // Update the execution time in the DB.
@@ -127,9 +135,9 @@ class report_sql extends report_base {
                 }
             }
 
-            $sql = $this->prepare_sql($sql);
+            [$sql, $params] = $this->prepare_sql($sql);
 
-            if ($rs = $this->execute_query($sql)) {
+            if ($rs = $this->execute_query($sql, $params)) {
                 foreach ($rs as $row) {
                     if (empty($finaltable)) {
                         foreach ($row as $colname => $value) {
